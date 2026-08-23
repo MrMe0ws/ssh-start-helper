@@ -29,8 +29,7 @@ step_create_user() {
         local key_source
         key_source=$(whiptail_menu "SSH-ключ" "Откуда взять ключ?" 12 60 2 \
             "paste" "Вставить ключ вручную" \
-            "file" "Путь к файлу на сервере" \
-            3>&1 1>&2 2>&3) || key_source="paste"
+            "file" "Путь к файлу на сервере") || key_source="paste"
         restore_tty
 
         local pubkey=""

@@ -13,7 +13,7 @@ step_system_update() {
     run_cmd apt-get update -qq
 
     log_info "  apt upgrade..."
-    run_cmd DEBIAN_FRONTEND=noninteractive apt-get upgrade -y -qq
+    run_cmd env DEBIAN_FRONTEND=noninteractive apt-get upgrade -y -qq
 
     log_ok "  Система обновлена"
     save_state "SYSTEM_UPDATED" "true"
@@ -55,7 +55,7 @@ step_base_packages() {
 
     local packages=(curl wget git nano htop ufw whiptail rsync)
     log_info "  Установка: ${packages[*]}"
-    run_cmd DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${packages[@]}"
+    run_cmd env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${packages[@]}"
     log_ok "  Пакеты установлены"
     save_state "BASE_PACKAGES" "true"
 }

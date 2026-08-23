@@ -79,7 +79,7 @@ _select_steps_whiptail() {
         "swap" "Swap 1 GB" OFF \
         "motd" "MOTD distillium" OFF \
         "packages" "Базовые утилиты" ON \
-        3>&1 1>&2 2>&3); then
+        ); then
         restore_tty
         return 1
     fi
