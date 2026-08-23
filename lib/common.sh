@@ -2,7 +2,7 @@
 # shellcheck disable=SC2034
 # Common utilities: colored UI, logging, prompts, backups.
 
-readonly SSH_HELPER_VERSION="1.0.5"
+readonly SSH_HELPER_VERSION="1.0.6"
 readonly SSH_HELPER_DIR="/opt/ssh-start-helper"
 readonly SSH_HELPER_STATE="${SSH_HELPER_DIR}/state.env"
 readonly SSH_HELPER_BACKUP="${SSH_HELPER_DIR}/backup"
@@ -244,6 +244,24 @@ get_ssh_port() {
         [[ -n "${p}" ]] && port="${p}"
     fi
     echo "${port}"
+}
+
+# IP для подсказки ssh: из текущей сессии, иначе публичный
+get_server_ip() {
+    local ip=""
+    if [[ -n "${SSH_CONNECTION:-}" ]]; then
+        ip=$(echo "${SSH_CONNECTION}" | awk '{print $3}')
+        [[ -n "${ip}" ]] && { echo "${ip}"; return; }
+    fi
+    ip=$(curl -fsSL --max-time 4 https://api.ipify.org 2>/dev/null || true)
+    [[ -n "${ip}" ]] && { echo "${ip}"; return; }
+    ip=$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1)}')
+    echo "${ip:-YOUR_SERVER_IP}"
+}
+
+sshd_listens_on_port() {
+    local port="$1"
+    ss -tlnp 2>/dev/null | grep -qE ":${port}\b"
 }
 
 require_root() {

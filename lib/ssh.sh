@@ -4,6 +4,7 @@
 SSH_NEW_PORT=""
 SSH_MIGRATE_PORT=false
 SSH_CLOSE_PORT22=false
+SSH_SOCKET_WAS_ACTIVE=false
 
 _get_sshd_include_dir() {
     mkdir -p /etc/ssh/sshd_config.d
@@ -41,10 +42,45 @@ _validate_sshd_config() {
     return 1
 }
 
+# Ubuntu 22.04+/24.04: ssh.socket слушает :22 и блокирует смену порта
+_disable_ubuntu_ssh_socket() {
+    if systemctl list-unit-files ssh.socket &>/dev/null 2>&1; then
+        if systemctl is-active ssh.socket &>/dev/null; then
+            SSH_SOCKET_WAS_ACTIVE=true
+            log_warn "  Ubuntu ssh.socket активен — отключаем (иначе порт 22 останется)"
+            systemctl stop ssh.socket
+            systemctl disable ssh.socket
+            systemctl enable ssh.service
+        fi
+    fi
+}
+
+_restore_ubuntu_ssh_socket() {
+    if [[ "${SSH_SOCKET_WAS_ACTIVE}" == true ]]; then
+        log_info "  Восстановление ssh.socket..."
+        systemctl disable ssh.service 2>/dev/null || true
+        systemctl enable ssh.socket
+        systemctl start ssh.socket
+        SSH_SOCKET_WAS_ACTIVE=false
+    fi
+}
+
+_restart_ssh() {
+    if systemctl is-active ssh &>/dev/null 2>&1; then
+        run_cmd systemctl restart ssh
+    elif systemctl is-active sshd &>/dev/null 2>&1; then
+        run_cmd systemctl restart sshd
+    else
+        run_cmd systemctl restart ssh 2>/dev/null || run_cmd systemctl restart sshd
+    fi
+    sleep 1
+    log_ok "  SSH перезапущен (restart)"
+}
+
 _reload_ssh() {
-    if systemctl is-active ssh >/dev/null 2>&1; then
+    if systemctl is-active ssh &>/dev/null 2>&1; then
         run_cmd systemctl reload ssh
-    elif systemctl is-active sshd >/dev/null 2>&1; then
+    elif systemctl is-active sshd &>/dev/null 2>&1; then
         run_cmd systemctl reload sshd
     else
         run_cmd systemctl restart ssh 2>/dev/null || run_cmd systemctl restart sshd
@@ -57,7 +93,38 @@ _rollback_ssh_dropin() {
         rm -f "${SSH_HELPER_SSH_DROPIN}"
         log_warn "  Drop-in конфиг удалён (откат)"
     fi
-    _reload_ssh 2>/dev/null || true
+    _restore_ubuntu_ssh_socket
+    _restart_ssh 2>/dev/null || _reload_ssh 2>/dev/null || true
+}
+
+_verify_sshd_port() {
+    local port="$1"
+    if sshd_listens_on_port "${port}"; then
+        log_ok "  sshd слушает порт ${port}"
+        return 0
+    fi
+    log_err "  sshd НЕ слушает порт ${port} (проверка: ss -tlnp | grep ssh)"
+    ss -tlnp 2>/dev/null | grep -E 'sshd|:22|:2228' | sed 's/^/    /' || true
+    return 1
+}
+
+_show_ssh_test_hint() {
+    local port="$1"
+    local ip user
+    ip=$(get_server_ip)
+    user="${SUDO_USER:-${USER:-root}}"
+    [[ "${user}" == "root" && -n "${SSH_CONNECTION:-}" ]] && user="root"
+
+    echo ""
+    log_warn "  Откройте НОВОЕ окно терминала и проверьте вход:"
+    echo ""
+    echo -e "    ${C_YELLOW}ssh -p ${port} ${user}@${ip}${C_RESET}"
+    echo ""
+    log_warn "  Если не подключается:"
+    log_dim "    1. Откройте порт ${port}/tcp в панели VDS (cloud firewall)"
+    log_dim "    2. UFW: ufw status | grep ${port}"
+    log_dim "    3. На сервере: ss -tlnp | grep ${port}"
+    echo ""
 }
 
 step_ssh_configure() {
@@ -67,7 +134,6 @@ step_ssh_configure() {
     current_port=$(get_ssh_port)
     log_info "  Текущий SSH-порт: ${C_YELLOW}${current_port}${C_RESET}"
 
-    # --- Port change ---
     if confirm "  Сменить SSH-порт?" "n"; then
         SSH_MIGRATE_PORT=true
         local new_port
@@ -89,7 +155,6 @@ step_ssh_configure() {
         log_dim "  Порт останется: ${current_port}"
     fi
 
-    # --- Hardening options ---
     local permit_root="prohibit-password"
     local password_auth="yes"
 
@@ -126,11 +191,11 @@ step_ssh_configure() {
 
     backup_dir /etc/ssh
 
-    # Open new port in UFW before changing sshd (if ufw exists)
     if command -v ufw >/dev/null 2>&1 && [[ "${SSH_MIGRATE_PORT}" == true ]]; then
-        log_info "  Открываем порт ${SSH_NEW_PORT} в UFW (до смены sshd)..."
+        log_info "  Открываем порт ${SSH_NEW_PORT} в UFW..."
         if [[ "${DRY_RUN}" != true ]]; then
             ufw allow "${SSH_NEW_PORT}/tcp" comment 'ssh-start-helper' >/dev/null 2>&1 || true
+            log_ok "  UFW: allow ${SSH_NEW_PORT}/tcp"
         else
             log_dim "  [dry-run] ufw allow ${SSH_NEW_PORT}/tcp"
         fi
@@ -142,6 +207,10 @@ step_ssh_configure() {
         return 0
     fi
 
+    if [[ "${SSH_MIGRATE_PORT}" == true && "${SSH_NEW_PORT}" != "${current_port}" ]]; then
+        _disable_ubuntu_ssh_socket
+    fi
+
     _write_ssh_dropin "${SSH_NEW_PORT}" "${permit_root}" "${password_auth}"
 
     if ! _validate_sshd_config; then
@@ -149,13 +218,20 @@ step_ssh_configure() {
         return 1
     fi
 
-    _reload_ssh
+    if [[ "${SSH_MIGRATE_PORT}" == true && "${SSH_NEW_PORT}" != "${current_port}" ]]; then
+        _restart_ssh
+    else
+        _reload_ssh
+    fi
 
     if [[ "${SSH_MIGRATE_PORT}" == true && "${SSH_NEW_PORT}" != "${current_port}" ]]; then
-        echo ""
-        log_warn "  Проверьте вход в НОВОЙ сессии:"
-        log_value "  ssh -p " "${SSH_NEW_PORT}" " user@$(hostname -I 2>/dev/null | awk '{print $1}')"
-        echo ""
+        if ! _verify_sshd_port "${SSH_NEW_PORT}"; then
+            log_err "  Смена порта не применилась — откат"
+            _rollback_ssh_dropin
+            return 1
+        fi
+
+        _show_ssh_test_hint "${SSH_NEW_PORT}"
 
         if confirm "  Новое подключение работает?" "n"; then
             SSH_CLOSE_PORT22=true
@@ -164,7 +240,9 @@ step_ssh_configure() {
             log_err "  Откат изменений SSH..."
             _rollback_ssh_dropin
             if command -v ufw >/dev/null 2>&1; then
-                ufw delete allow "${SSH_NEW_PORT}/tcp" >/dev/null 2>&1 || true
+                local rule_num
+                rule_num=$(ufw status numbered 2>/dev/null | grep -E "${SSH_NEW_PORT}/tcp.*ALLOW" | head -1 | sed -n 's/^\[\([0-9]*\)\].*/\1/p')
+                [[ -n "${rule_num}" ]] && ufw --force delete "${rule_num}" >/dev/null 2>&1 || true
             fi
             return 1
         fi

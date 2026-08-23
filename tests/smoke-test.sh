@@ -35,7 +35,7 @@ else
     bad "install.sh repo URL"
 fi
 
-if grep -q 'INSTALL_VERSION="1.0.5"' "${ROOT}/install.sh"; then
+if grep -q 'INSTALL_VERSION="1.0.6"' "${ROOT}/install.sh"; then
     ok "install.sh version tag"
 else
     bad "install.sh version tag"
