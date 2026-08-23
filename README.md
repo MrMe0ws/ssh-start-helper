@@ -7,11 +7,11 @@
 Одна команда — **установка и сразу запуск** настройки (root):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/MrMe0ws/ssh-start-helper/v1.0.6/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/MrMe0ws/ssh-start-helper/v1.0.7/install.sh | bash
 ```
 
 > **Важно:** URL с `/main/` может отдавать старую версию из кэша GitHub CDN.
-> Используйте `/v1.0.6/` (тег релиза) или добавьте `?$(date +%s)` к `/main/`.
+> Используйте `/v1.0.7/` (тег релиза) или добавьте `?$(date +%s)` к `/main/`.
 
 Альтернатива (последний main, с обходом кэша):
 
@@ -22,7 +22,7 @@ curl -fsSL "https://raw.githubusercontent.com/MrMe0ws/ssh-start-helper/main/inst
 Только установить, без запуска wizard:
 
 ```bash
-SSH_HELPER_NO_RUN=1 curl -fsSL https://raw.githubusercontent.com/MrMe0ws/ssh-start-helper/v1.0.6/install.sh | bash
+SSH_HELPER_NO_RUN=1 curl -fsSL https://raw.githubusercontent.com/MrMe0ws/ssh-start-helper/v1.0.7/install.sh | bash
 ```
 
 **Повторный запуск** настройки:
