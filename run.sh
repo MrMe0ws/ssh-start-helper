@@ -77,7 +77,9 @@ _select_steps_whiptail() {
         "swap" "Swap 1 GB" OFF \
         "motd" "MOTD distillium" OFF \
         "packages" "Базовые утилиты" ON \
-        3>&1 1>&2 2>&3) || { log_info "Отменено"; exit 0; }
+        ) || { restore_tty; log_info "Отменено"; exit 0; }
+
+    restore_tty
 
     [[ "${choices}" == *update* ]] && RUN_UPDATE=true
     [[ "${choices}" == *hostname* ]] && RUN_HOSTNAME=true

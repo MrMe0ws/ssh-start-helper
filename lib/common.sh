@@ -2,7 +2,7 @@
 # shellcheck disable=SC2034
 # Common utilities: colored UI, logging, prompts, backups.
 
-readonly SSH_HELPER_VERSION="1.0.0"
+readonly SSH_HELPER_VERSION="1.0.1"
 readonly SSH_HELPER_DIR="/opt/ssh-start-helper"
 readonly SSH_HELPER_STATE="${SSH_HELPER_DIR}/state.env"
 readonly SSH_HELPER_BACKUP="${SSH_HELPER_DIR}/backup"
@@ -98,6 +98,13 @@ print_summary_box() {
     echo ""
 }
 
+# Interactive I/O — always /dev/tty (whiptail and piped stdout break stdin)
+readonly _TTY="/dev/tty"
+
+restore_tty() {
+    [[ -r "${_TTY}" ]] && stty sane < "${_TTY}" 2>/dev/null || true
+}
+
 confirm() {
     local prompt="${1:-Продолжить?}"
     local default="${2:-n}"
@@ -107,14 +114,14 @@ confirm() {
         suffix="[Y/n]"
     fi
 
-    local answer
-    if [[ -t 0 ]]; then
-        echo -en "${C_BOLD}${C_CYAN}?${C_RESET} ${prompt} ${suffix}: "
-        read -r answer
-    else
-        echo -en "${C_BOLD}${C_CYAN}?${C_RESET} ${prompt} ${suffix}: " > /dev/tty
-        read -r answer < /dev/tty
+    if [[ ! -r "${_TTY}" ]]; then
+        log_err "Нет интерактивного терминала. Запустите: ssh-start-helper"
+        return 1
     fi
+
+    local answer
+    echo -en "${C_BOLD}${C_CYAN}?${C_RESET} ${prompt} ${suffix}: " > "${_TTY}"
+    read -r answer < "${_TTY}"
 
     answer="${answer:-$default}"
     case "${answer,,}" in
@@ -128,18 +135,19 @@ prompt_input() {
     local default="${2:-}"
     local answer
 
+    if [[ ! -r "${_TTY}" ]]; then
+        log_warn "Нет терминала, используется значение по умолчанию: ${default}"
+        echo "${default}"
+        return
+    fi
+
     if [[ -n "${default}" ]]; then
-        echo -en "${C_BOLD}${C_CYAN}?${C_RESET} ${prompt} [${C_YELLOW}${default}${C_RESET}]: "
+        echo -en "${C_BOLD}${C_CYAN}?${C_RESET} ${prompt} [${C_YELLOW}${default}${C_RESET}]: " > "${_TTY}"
     else
-        echo -en "${C_BOLD}${C_CYAN}?${C_RESET} ${prompt}: "
+        echo -en "${C_BOLD}${C_CYAN}?${C_RESET} ${prompt}: " > "${_TTY}"
     fi
 
-    if [[ -t 0 ]]; then
-        read -r answer
-    else
-        read -r answer < /dev/tty
-    fi
-
+    read -r answer < "${_TTY}"
     echo "${answer:-$default}"
 }
 
@@ -260,7 +268,12 @@ whiptail_menu() {
     local width="$4"
     local menu_height="$5"
     shift 5
-    whiptail --title "${title}" --menu "${prompt}" "${height}" "${width}" "${menu_height}" "$@" 3>&1 1>&2 2>&3
+    local result
+    result=$(whiptail --title "${title}" --menu "${prompt}" "${height}" "${width}" "${menu_height}" "$@" 3>&1 1>&2 2>&3)
+    local rc=$?
+    restore_tty
+    [[ "${rc}" -eq 0 ]] && echo "${result}"
+    return "${rc}"
 }
 
 whiptail_checklist() {
@@ -270,5 +283,10 @@ whiptail_checklist() {
     local width="$4"
     local list_height="$5"
     shift 5
-    whiptail --title "${title}" --checklist "${prompt}" "${height}" "${width}" "${list_height}" "$@" 3>&1 1>&2 2>&3
+    local result
+    result=$(whiptail --title "${title}" --checklist "${prompt}" "${height}" "${width}" "${list_height}" "$@" 3>&1 1>&2 2>&3)
+    local rc=$?
+    restore_tty
+    [[ "${rc}" -eq 0 ]] && echo "${result}"
+    return "${rc}"
 }

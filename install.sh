@@ -79,7 +79,7 @@ main() {
     fi
 
     _create_command
-    echo "1.0.0" > "${INSTALL_DIR}/VERSION"
+    echo "1.0.1" > "${INSTALL_DIR}/VERSION"
 
     _print_done
 

@@ -45,12 +45,8 @@ step_create_user() {
                 ;;
             *)
                 echo ""
-                echo -en "${C_BOLD}${C_CYAN}?${C_RESET}   Вставьте публичный ключ (одной строкой) и нажмите Enter: "
-                if [[ -t 0 ]]; then
-                    read -r pubkey
-                else
-                    read -r pubkey < /dev/tty
-                fi
+                echo -en "${C_BOLD}${C_CYAN}?${C_RESET}   Вставьте публичный ключ (одной строкой) и нажмите Enter: " > "${_TTY:-/dev/tty}"
+                read -r pubkey < "${_TTY:-/dev/tty}"
                 ;;
         esac
 
