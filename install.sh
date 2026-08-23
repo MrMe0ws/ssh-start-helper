@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # Installer: curl -fsSL .../install.sh | bash
-# Installs files to /opt/ssh-start-helper and creates `ssh-start-helper` command.
+# Installs files to /opt/ssh-start-helper and immediately runs the wizard.
 #
 
 set -euo pipefail
@@ -9,12 +9,18 @@ set -euo pipefail
 readonly INSTALL_DIR="/opt/ssh-start-helper"
 readonly BIN_LINK="/usr/local/bin/ssh-start-helper"
 readonly REPO_RAW="${SSH_HELPER_REPO:-https://raw.githubusercontent.com/MrMe0ws/ssh-start-helper/main}"
+readonly INSTALL_VERSION="1.0.2"
 
 _log() { echo "[+] $*" >&2; }
 _err() { echo "[✗] $*" >&2; exit 1; }
 
 require_root() {
     [[ "${EUID}" -eq 0 ]] || _err "Запустите от root: curl ... | bash"
+}
+
+_is_local_install() {
+    local src="${BASH_SOURCE[0]:-}"
+    [[ -n "${src}" && -f "${src}" && "$(basename "${src}")" == "install.sh" ]]
 }
 
 _install_from_local() {
@@ -28,7 +34,7 @@ _install_from_local() {
 }
 
 _install_from_remote() {
-    _log "Загрузка из ${REPO_RAW}..."
+    _log "Загрузка v${INSTALL_VERSION} из ${REPO_RAW}..."
     mkdir -p "${INSTALL_DIR}/lib"
 
     curl -fsSL "${REPO_RAW}/run.sh" -o "${INSTALL_DIR}/run.sh" || _err "Не удалось загрузить run.sh"
@@ -54,41 +60,26 @@ EOF
     chmod +x "${BIN_LINK}"
 }
 
-_print_done() {
-    echo ""
-    echo "  ╔══════════════════════════════════════════════╗"
-    echo "  ║  ssh-start-helper установлен                 ║"
-    echo "  ╚══════════════════════════════════════════════╝"
-    echo ""
-    echo "  Повторный запуск: ssh-start-helper"
-    echo ""
-}
-
 main() {
     require_root
 
-    local src_dir=""
-    if [[ -n "${BASH_SOURCE[0]:-}" && -f "${BASH_SOURCE[0]}" ]]; then
-        src_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    fi
-
-    if [[ -n "${src_dir}" && -f "${src_dir}/run.sh" ]]; then
-        _install_from_local "${src_dir}"
+    if _is_local_install; then
+        _install_from_local "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     else
         _install_from_remote
     fi
 
     _create_command
-    echo "1.0.1" > "${INSTALL_DIR}/VERSION"
+    echo "${INSTALL_VERSION}" > "${INSTALL_DIR}/VERSION"
 
-    _print_done
-
-    # Только установка без запуска: SSH_HELPER_NO_RUN=1 curl ... | bash
     if [[ "${SSH_HELPER_NO_RUN:-}" == "1" ]]; then
+        echo ""
+        echo "  Установлено. Запуск: ssh-start-helper"
         exit 0
     fi
 
-    # curl | bash и локальный install.sh — сразу запускаем wizard
+    # curl | bash: stdin — pipe, wizard всё равно через /dev/tty
+    _log "Запуск ssh-start-helper..."
     exec "${BIN_LINK}" "$@"
 }
 

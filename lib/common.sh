@@ -2,7 +2,7 @@
 # shellcheck disable=SC2034
 # Common utilities: colored UI, logging, prompts, backups.
 
-readonly SSH_HELPER_VERSION="1.0.1"
+readonly SSH_HELPER_VERSION="1.0.2"
 readonly SSH_HELPER_DIR="/opt/ssh-start-helper"
 readonly SSH_HELPER_STATE="${SSH_HELPER_DIR}/state.env"
 readonly SSH_HELPER_BACKUP="${SSH_HELPER_DIR}/backup"
@@ -268,11 +268,9 @@ whiptail_menu() {
     local width="$4"
     local menu_height="$5"
     shift 5
-    local result
-    result=$(whiptail --title "${title}" --menu "${prompt}" "${height}" "${width}" "${menu_height}" "$@" 3>&1 1>&2 2>&3)
+    whiptail --title "${title}" --menu "${prompt}" "${height}" "${width}" "${menu_height}" "$@" 3>&1 1>&2 2>&3
     local rc=$?
     restore_tty
-    [[ "${rc}" -eq 0 ]] && echo "${result}"
     return "${rc}"
 }
 
@@ -283,10 +281,8 @@ whiptail_checklist() {
     local width="$4"
     local list_height="$5"
     shift 5
-    local result
-    result=$(whiptail --title "${title}" --checklist "${prompt}" "${height}" "${width}" "${list_height}" "$@" 3>&1 1>&2 2>&3)
+    whiptail --title "${title}" --checklist "${prompt}" "${height}" "${width}" "${list_height}" "$@" 3>&1 1>&2 2>&3
     local rc=$?
     restore_tty
-    [[ "${rc}" -eq 0 ]] && echo "${result}"
     return "${rc}"
 }

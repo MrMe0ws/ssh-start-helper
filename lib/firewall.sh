@@ -71,7 +71,8 @@ _ufw_audit_existing() {
         "ssh_only" "Только добавить SSH-порт, остальное не трогать (рекомендуется)" \
         "review" "Просмотреть и подтвердить каждое правило" \
         "keep" "Не менять правила, только показать сводку" \
-        2>/dev/null || echo "ssh_only")
+        3>&1 1>&2 2>&3) || mode="ssh_only"
+    restore_tty
 
     case "${mode}" in
         ssh_only)

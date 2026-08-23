@@ -64,7 +64,9 @@ _show_dry_run_notice() {
 
 _select_steps_whiptail() {
     local choices
-    choices=$(whiptail_checklist "ssh-start-helper" \
+    log_info "Откроется меню выбора этапов (whiptail)..."
+
+    if ! choices=$(whiptail_checklist "ssh-start-helper" \
         "Выберите этапы настройки (Space — выбор, Enter — OK):" \
         22 78 10 \
         "update" "Обновление системы (apt)" ON \
@@ -77,7 +79,10 @@ _select_steps_whiptail() {
         "swap" "Swap 1 GB" OFF \
         "motd" "MOTD distillium" OFF \
         "packages" "Базовые утилиты" ON \
-        ) || { restore_tty; log_info "Отменено"; exit 0; }
+        3>&1 1>&2 2>&3); then
+        restore_tty
+        return 1
+    fi
 
     restore_tty
 
@@ -91,6 +96,7 @@ _select_steps_whiptail() {
     [[ "${choices}" == *swap* ]] && RUN_SWAP=true
     [[ "${choices}" == *motd* ]] && RUN_MOTD=true
     [[ "${choices}" == *packages* ]] && RUN_PACKAGES=true
+    return 0
 }
 
 _select_steps_text() {
@@ -111,8 +117,12 @@ _select_steps_text() {
 }
 
 _select_steps() {
-    if require_whiptail; then
-        _select_steps_whiptail
+    if require_whiptail && [[ -r /dev/tty ]]; then
+        if ! _select_steps_whiptail; then
+            log_warn "Меню whiptail недоступно — переключаюсь на текстовый режим"
+            echo ""
+            _select_steps_text
+        fi
     else
         _select_steps_text
     fi
