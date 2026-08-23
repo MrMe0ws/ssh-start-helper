@@ -4,13 +4,19 @@
 
 ## Быстрый запуск
 
-**Установка** (одна команда, root):
+Одна команда — **установка и сразу запуск** настройки (root):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/MrMe0ws/ssh-start-helper/main/install.sh | bash
 ```
 
-**Запуск настройки**:
+Только установить, без запуска wizard:
+
+```bash
+SSH_HELPER_NO_RUN=1 curl -fsSL https://raw.githubusercontent.com/MrMe0ws/ssh-start-helper/main/install.sh | bash
+```
+
+**Повторный запуск** настройки:
 
 ```bash
 ssh-start-helper
@@ -29,8 +35,9 @@ ssh-start-helper --dry-run
 ```bash
 git clone https://github.com/MrMe0ws/ssh-start-helper.git
 cd ssh-start-helper
-sudo bash install.sh      # установит в /opt и создаст команду
-sudo ssh-start-helper     # или: sudo bash run.sh --dry-run
+sudo bash install.sh          # установка + сразу wizard
+sudo ssh-start-helper         # повторный запуск
+sudo bash run.sh --dry-run    # dry-run без установки в /opt
 ```
 
 Тесты (на Ubuntu):

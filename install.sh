@@ -60,13 +60,7 @@ _print_done() {
     echo "  ║  ssh-start-helper установлен                 ║"
     echo "  ╚══════════════════════════════════════════════╝"
     echo ""
-    echo "  Запуск настройки:"
-    echo ""
-    echo "    ssh-start-helper"
-    echo ""
-    echo "  Dry-run:"
-    echo ""
-    echo "    ssh-start-helper --dry-run"
+    echo "  Повторный запуск: ssh-start-helper"
     echo ""
 }
 
@@ -89,12 +83,13 @@ main() {
 
     _print_done
 
-    if [[ -t 0 ]] && [[ -t 1 ]]; then
-        read -r -p "  Запустить настройку сейчас? [y/N]: " answer
-        case "${answer,,}" in
-            y|yes|да|д) exec "${BIN_LINK}" ;;
-        esac
+    # Только установка без запуска: SSH_HELPER_NO_RUN=1 curl ... | bash
+    if [[ "${SSH_HELPER_NO_RUN:-}" == "1" ]]; then
+        exit 0
     fi
+
+    # curl | bash и локальный install.sh — сразу запускаем wizard
+    exec "${BIN_LINK}" "$@"
 }
 
 main "$@"
