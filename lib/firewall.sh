@@ -65,12 +65,13 @@ _ufw_audit_existing() {
     echo ""
     log_info "  Обнаружено правил: ${UFW_RULES_COUNT}"
 
-    mode=$(whiptail_menu "UFW — существующие правила" \
-        "UFW уже активен. Что делать с существующими правилами?" \
+    mode=$(whiptail --title "UFW — существующие правила" \
+        --menu "UFW уже активен. Что делать с существующими правилами?" \
         16 72 3 \
         "ssh_only" "Только добавить SSH-порт, остальное не трогать (рекомендуется)" \
         "review" "Просмотреть и подтвердить каждое правило" \
-        "keep" "Не менять правила, только показать сводку") || mode="ssh_only"
+        "keep" "Не менять правила, только показать сводку" \
+        3>&1 1>&2 2>&3) || mode="ssh_only"
     restore_tty
 
     case "${mode}" in
@@ -163,7 +164,7 @@ step_ufw_configure() {
 
     if ! command -v ufw >/dev/null 2>&1; then
         log_info "  Установка ufw..."
-        run_cmd env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ufw
+        run_cmd apt-get install -y -qq ufw
     fi
 
     local ssh_port

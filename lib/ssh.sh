@@ -95,10 +95,11 @@ step_ssh_configure() {
 
     if confirm "  Настроить параметры безопасности SSH?" "y"; then
         local root_choice
-        root_choice=$(whiptail_menu "PermitRootLogin" "Root-доступ по SSH:" 14 65 3 \
+        root_choice=$(whiptail --title "PermitRootLogin" --menu "Root-доступ по SSH:" 14 65 3 \
             "prohibit-password" "Только ключ (рекомендуется)" \
             "no" "Запретить root полностью" \
-            "yes" "Оставить как есть (небезопасно)") || root_choice="prohibit-password"
+            "yes" "Оставить как есть (небезопасно)" \
+            3>&1 1>&2 2>&3) || root_choice="prohibit-password"
         restore_tty
         permit_root="${root_choice}"
 

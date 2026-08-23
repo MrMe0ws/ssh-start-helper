@@ -14,7 +14,7 @@ step_fail2ban() {
         return 0
     fi
 
-    run_cmd env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq fail2ban
+    run_cmd apt-get install -y -qq fail2ban
 
     local ssh_port
     ssh_port=$(load_state "SSH_PORT" "$(get_ssh_port)")
@@ -46,7 +46,7 @@ step_unattended_upgrades() {
         return 0
     fi
 
-    run_cmd env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq unattended-upgrades apt-listchanges
+    run_cmd apt-get install -y -qq unattended-upgrades apt-listchanges
 
     if [[ -f /etc/apt/apt.conf.d/20auto-upgrades ]]; then
         log_ok "  auto-upgrades уже настроен"

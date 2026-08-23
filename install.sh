@@ -9,7 +9,7 @@ set -euo pipefail
 readonly INSTALL_DIR="/opt/ssh-start-helper"
 readonly BIN_LINK="/usr/local/bin/ssh-start-helper"
 readonly REPO_RAW="${SSH_HELPER_REPO:-https://raw.githubusercontent.com/MrMe0ws/ssh-start-helper/main}"
-readonly INSTALL_VERSION="1.0.3"
+readonly INSTALL_VERSION="1.0.4"
 
 _log() { echo "[+] $*" >&2; }
 _err() { echo "[✗] $*" >&2; exit 1; }

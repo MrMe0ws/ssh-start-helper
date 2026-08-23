@@ -43,6 +43,9 @@ source "${SCRIPT_DIR}/lib/swap.sh"
 # shellcheck source=lib/motd.sh
 source "${SCRIPT_DIR}/lib/motd.sh"
 
+export DEBIAN_FRONTEND=noninteractive
+export TERM="${TERM:-xterm-256color}"
+
 RUN_UPDATE=false
 RUN_HOSTNAME=false
 RUN_USER=false
@@ -64,10 +67,9 @@ _show_dry_run_notice() {
 
 _select_steps_whiptail() {
     local choices
-    log_info "Откроется меню выбора этапов (whiptail)..."
 
-    if ! choices=$(whiptail_checklist "ssh-start-helper" \
-        "Выберите этапы настройки (Space — выбор, Enter — OK):" \
+    if ! choices=$(whiptail --title "ssh-start-helper" \
+        --checklist "Выберите этапы (Space — выбор, Enter — OK):" \
         22 78 10 \
         "update" "Обновление системы (apt)" ON \
         "hostname" "Hostname и timezone" ON \
@@ -79,7 +81,7 @@ _select_steps_whiptail() {
         "swap" "Swap 1 GB" OFF \
         "motd" "MOTD distillium" OFF \
         "packages" "Базовые утилиты" ON \
-        ); then
+        3>&1 1>&2 2>&3); then
         restore_tty
         return 1
     fi
@@ -215,6 +217,7 @@ main() {
     print_separator
 
     _select_steps
+    echo ""
     print_separator
 
     if ! confirm "Начать выбранные этапы?" "y"; then
