@@ -95,21 +95,48 @@ fw_remove_port() {
     esac
 }
 
-# Порты, которые слушают сервисы снаружи (не localhost), кроме sshd.
-# Формат строк: "port/proto process"
-list_public_listening_ports() {
+# Все внешние сокеты (не localhost), кроме sshd. Строки: "port proto process"
+_public_sockets() {
     ss -tulnp 2>/dev/null | tail -n +2 | awk '
         {
-            proto = $1; local = $5; proc = $0
+            proto = $1; la = $5; proc = $0
             sub(/.*users:\(\("/, "", proc); sub(/".*/, "", proc)
             if (proc == $0) proc = "?"
-            n = split(local, a, ":"); port = a[n]
-            addr = substr(local, 1, length(local) - length(port) - 1)
+            n = split(la, a, ":"); port = a[n]
+            addr = substr(la, 1, length(la) - length(port) - 1)
             if (addr ~ /^127\./ || addr == "[::1]" || addr ~ /%lo$/) next
             if (proc ~ /^sshd/) next
             if (port !~ /^[0-9]+$/) next
-            print port "/" proto " " proc
-        }' | sort -t/ -k1,1n -u
+            print port, proto, proc
+        }' | sort -u | sort -k1,1n -k2,2
+}
+
+# UDP-сокеты на эфемерных портах — это исходящие соединения (xray, DNS-клиенты),
+# а не сервисы: открывать их не нужно, и порты меняются при каждом запуске.
+_is_ephemeral_udp() {
+    local port="$1" proto="$2" lo hi
+    [[ "${proto}" == "udp" ]] || return 1
+    read -r lo hi < /proc/sys/net/ipv4/ip_local_port_range 2>/dev/null || { lo=32768; hi=60999; }
+    (( port >= lo && port <= hi ))
+}
+
+# Порты, которые реально слушают сервисы снаружи. Формат строк: "port/proto process"
+list_public_listening_ports() {
+    local port proto proc
+    while read -r port proto proc; do
+        [[ -n "${port}" ]] || continue
+        _is_ephemeral_udp "${port}" "${proto}" && continue
+        echo "${port}/${proto} ${proc}"
+    done < <(_public_sockets)
+}
+
+_count_ephemeral_udp() {
+    local port proto proc n=0
+    while read -r port proto proc; do
+        [[ -n "${port}" ]] || continue
+        _is_ephemeral_udp "${port}" "${proto}" && ((n++)) || true
+    done < <(_public_sockets)
+    echo "${n}"
 }
 
 _parse_ufw_rules() {
@@ -215,29 +242,61 @@ _ufw_review_each_rule() {
     fw_ensure_ssh_ports "${ssh_ports[@]}"
 }
 
+_is_valid_ip_or_cidr() {
+    [[ "$1" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}(/[0-9]{1,2})?$ || "$1" =~ ^[0-9a-fA-F:]+(/[0-9]{1,3})?$ ]]
+}
+
+# Открыть один порт сервиса. API ноды Remnawave (rw-node) нужен только панели —
+# предлагаем открыть его для IP панели, а не для всего интернета.
+_ufw_allow_service() {
+    local port_proto="$1" proc="$2"
+    local port="${port_proto%/*}" proto="${port_proto#*/}"
+
+    if [[ "${proc}" == "rw-node" ]]; then
+        local panel_ip
+        while true; do
+            panel_ip=$(prompt_input "    ${port_proto} — API ноды Remnawave. IP панели (пусто — открыть для всех)" "")
+            if [[ -z "${panel_ip}" ]] || _is_valid_ip_or_cidr "${panel_ip}"; then
+                break
+            fi
+            log_err "    Это не IP-адрес: ${panel_ip}"
+        done
+        if [[ -n "${panel_ip}" ]]; then
+            run_cmd _ufw allow from "${panel_ip}" to any port "${port}" proto "${proto}" comment "remnanode api" >/dev/null \
+                || run_cmd _ufw allow from "${panel_ip}" to any port "${port}" proto "${proto}" >/dev/null
+            log_ok "  allow ${port_proto} только с ${panel_ip} (${proc})"
+            return 0
+        fi
+    fi
+
+    run_cmd _ufw allow "${port_proto}" comment "auto: ${proc}" >/dev/null \
+        || run_cmd _ufw allow "${port_proto}" >/dev/null
+    log_ok "  allow ${port_proto} (${proc})"
+}
+
 _ufw_allow_running_services() {
-    local services
+    local services skipped
     services=$(list_public_listening_ports)
+    skipped=$(_count_ephemeral_udp)
     [[ -n "${services}" ]] || return 0
 
     echo ""
     log_info "  Сервисы, которые сейчас принимают подключения снаружи:"
     echo "${services}" | sed 's/^/      /'
+    if (( skipped > 0 )); then
+        log_dim "  (ещё ${skipped} UDP-сокетов на эфемерных портах — это исходящие соединения, их открывать не нужно)"
+    fi
     log_dim "  (если их не открыть, после включения UFW они станут недоступны)"
 
+    local port_proto proc
     if confirm "  Открыть все эти порты в UFW?" "y"; then
-        local port_proto proc
         while read -r port_proto proc; do
-            run_cmd _ufw allow "${port_proto}" comment "auto: ${proc}" >/dev/null \
-                || run_cmd _ufw allow "${port_proto}" >/dev/null
-            log_ok "  allow ${port_proto} (${proc})"
+            _ufw_allow_service "${port_proto}" "${proc}"
         done <<< "${services}"
     else
-        local port_proto proc
         while read -r port_proto proc; do
             if confirm "    Открыть ${port_proto} (${proc})?" "y"; then
-                run_cmd _ufw allow "${port_proto}" comment "auto: ${proc}" >/dev/null \
-                    || run_cmd _ufw allow "${port_proto}" >/dev/null
+                _ufw_allow_service "${port_proto}" "${proc}"
             fi
         done <<< "${services}"
     fi

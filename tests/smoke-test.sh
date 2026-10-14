@@ -102,6 +102,37 @@ else
     bad "libs load"
 fi
 
+# Разбор слушающих портов: 443/tcp и 443/udp не склеиваются, эфемерные UDP xray скрыты
+# shellcheck disable=SC1090,SC2317
+ports_out=$(
+    for f in "${ROOT}"/lib/*.sh; do source "${f}"; done
+    ss() {
+        cat << 'SS'
+Netid State  Recv-Q Send-Q Local Address:Port Peer Address:Port Process
+udp   UNCONN 0      0            0.0.0.0:54289      0.0.0.0:*    users:(("rw-core",pid=1479,fd=368))
+udp   UNCONN 0      0                  *:443              *:*    users:(("rw-core",pid=1479,fd=9))
+tcp   LISTEN 0      4096               *:443              *:*    users:(("rw-core",pid=1479,fd=7))
+tcp   LISTEN 0      4096               *:2222             *:*    users:(("rw-node",pid=1283,fd=21))
+tcp   LISTEN 0      4096               *:80               *:*    users:(("caddy",pid=1136,fd=7))
+tcp   LISTEN 0      128          0.0.0.0:2228       0.0.0.0:*    users:(("sshd",pid=827,fd=3))
+tcp   LISTEN 0      4096       127.0.0.1:9443       0.0.0.0:*    users:(("caddy",pid=1136,fd=8))
+SS
+    }
+    list_public_listening_ports
+    echo "skipped=$(_count_ephemeral_udp)"
+)
+expected=$'80/tcp caddy
+443/tcp rw-core
+443/udp rw-core
+2222/tcp rw-node
+skipped=1'
+if [[ "${ports_out}" == "${expected}" ]]; then
+    ok "list_public_listening_ports (443 tcp+udp, ephemeral UDP skipped)"
+else
+    bad "list_public_listening_ports: ${ports_out//$'
+'/ | }"
+fi
+
 echo ""
 echo "=== Results: ${PASS} passed, ${FAIL} failed ==="
 [[ "${FAIL}" -eq 0 ]]

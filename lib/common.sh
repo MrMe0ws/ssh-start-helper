@@ -2,7 +2,7 @@
 # shellcheck disable=SC2034
 # Common utilities: colored UI, logging, prompts, backups, packages, sshd helpers.
 
-readonly SSH_HELPER_VERSION="1.1.0"
+readonly SSH_HELPER_VERSION="1.1.1"
 readonly SSH_HELPER_DIR="/opt/ssh-start-helper"
 readonly SSH_HELPER_STATE="${SSH_HELPER_DIR}/state.env"
 readonly SSH_HELPER_BACKUP="${SSH_HELPER_DIR}/backup"
