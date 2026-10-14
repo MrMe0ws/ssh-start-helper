@@ -6,6 +6,11 @@ readonly MOTD_INSTALL_URL="https://raw.githubusercontent.com/distillium/motd/mai
 step_motd() {
     print_step "MOTD (distillium/motd)"
 
+    if ! is_debian_like; then
+        log_warn "  distillium/motd рассчитан на Debian/Ubuntu — пропуск"
+        return 0
+    fi
+
     if command -v motd-set >/dev/null 2>&1; then
         log_ok "  MOTD уже установлен (motd-set найден)"
         confirm "  Переустановить?" "n" || return 0

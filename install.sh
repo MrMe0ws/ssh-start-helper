@@ -8,7 +8,7 @@ set -euo pipefail
 
 readonly INSTALL_DIR="/opt/ssh-start-helper"
 readonly BIN_LINK="/usr/local/bin/ssh-start-helper"
-readonly INSTALL_VERSION="1.0.8"
+readonly INSTALL_VERSION="1.1.0"
 # Тег вместо main — GitHub CDN не отдаёт устаревший кэш
 readonly REPO_RAW="${SSH_HELPER_REPO:-https://raw.githubusercontent.com/MrMe0ws/ssh-start-helper/v${INSTALL_VERSION}}"
 
